@@ -1,5 +1,7 @@
 import pytest
+from unittest.mock import AsyncMock, patch
 from app.plugins.ai_models.ollama_model_plugin import OllamaModelPlugin
+import httpx
 
 class TestOllamaModelPlugin:
     def test_default_configuration(self):
@@ -46,7 +48,7 @@ class TestOllamaModelPlugin:
         """
         Test model metadata retrieval
         """
-        plugin = OllamaModelPlugin("custom_model")
+        plugin = OllamaModelPlugin(model_name="custom_model")
         metadata = plugin.get_model_metadata()
         
         assert metadata['model_name'] == "custom_model"
@@ -56,11 +58,17 @@ class TestOllamaModelPlugin:
         assert 'generation_params' in metadata
     
     @pytest.mark.asyncio
-    async def test_text_generation(self):
+    @patch('httpx.AsyncClient.post')
+    async def test_text_generation(self, mock_post):
         """
-        Test basic text generation
-        Requires Ollama service to be running
+        Test basic text generation with mocked HTTP response
         """
+        # Configurer la réponse mock
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = AsyncMock()
+        mock_response.text = "A short story about a brave robot."
+        mock_post.return_value = mock_response
+
         plugin = OllamaModelPlugin()
         prompt = "Write a short story about a brave robot."
         
@@ -69,17 +77,29 @@ class TestOllamaModelPlugin:
         
         assert isinstance(response, str)
         assert len(response) > 0
+        
+        # Vérifier que la requête a été faite avec les bons paramètres
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args[1]
+        assert call_args['json']['model'] == 'llama2'
+        assert call_args['json']['prompt'] == prompt
     
     @pytest.mark.asyncio
-    async def test_text_generation_with_custom_params(self):
+    @patch('httpx.AsyncClient.post')
+    async def test_text_generation_with_custom_params(self, mock_post):
         """
         Test text generation with custom parameters
-        Requires Ollama service to be running
         """
+        # Configurer la réponse mock
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = AsyncMock()
+        mock_response.text = "An explanation of quantum computing in simple terms."
+        mock_post.return_value = mock_response
+
         plugin = OllamaModelPlugin()
         prompt = "Explain quantum computing in simple terms."
         
-        custom_params = {
+        custom_config = {
             "max_tokens": 200,
             "temperature": 0.5,
             "top_p": 0.8
@@ -87,8 +107,15 @@ class TestOllamaModelPlugin:
         
         response = await plugin.generate_text(
             prompt, 
-            parameters=custom_params
+            config=custom_config
         )
         
         assert isinstance(response, str)
         assert len(response) > 0
+        
+        # Vérifier que la requête a été faite avec les paramètres personnalisés
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args[1]
+        assert call_args['json']['max_tokens'] == 200
+        assert call_args['json']['temperature'] == 0.5
+        assert call_args['json']['top_p'] == 0.8

@@ -1,28 +1,26 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Table, func
-from sqlalchemy.orm import relationship, declarative_base, mapped_column, Mapped
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKey, Table, Boolean
+from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, AsyncGenerator
 
-from app.core.config import settings
+Base = declarative_base()
 
-# Configuration de l'engine asynchrone
+# Configuration de la base de données
+DATABASE_URL = "sqlite+aiosqlite:///./ai_dungeon.db"
+
+# Création de l'engine asynchrone
 async_engine = create_async_engine(
-    settings.SQLALCHEMY_DATABASE_URI,
+    DATABASE_URL, 
     echo=False,
     future=True
 )
 
-# Création du sessionmaker asynchrone
+# Création du générateur de session asynchrone
 AsyncSessionLocal = async_sessionmaker(
     async_engine, 
     class_=AsyncSession, 
     expire_on_commit=False
 )
-
-Base = declarative_base()
 
 # Table d'association pour la relation many-to-many entre Story et Character
 story_characters = Table(
@@ -35,105 +33,94 @@ class Character(Base):
     """Modèle SQLAlchemy pour les personnages"""
     __tablename__ = 'characters'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    personality: Mapped[Dict[str, Any]] = mapped_column(JSON, default={})
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True, default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    description = Column(String(500), nullable=True)
+    personality = Column(JSON, nullable=True, default={})
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc))
 
     # Relations
-    stories: Mapped[List['Story']] = relationship(
-        'Story', 
+    stories = relationship(
+        "Story", 
         secondary=story_characters, 
-        back_populates='characters'
+        back_populates="characters",
+        cascade="save-update, merge"
     )
-    actions: Mapped[List['Action']] = relationship('Action', back_populates='character')
-    memories: Mapped[List['Memory']] = relationship('Memory', back_populates='character')
-
-    def __repr__(self):
-        return f"<Character(id={self.id}, name='{self.name}')>"
+    memories = relationship("Memory", back_populates="character", cascade="all, delete-orphan")
+    actions = relationship("Action", back_populates="character", cascade="all, delete-orphan")
 
 
 class Story(Base):
     """Modèle SQLAlchemy pour les histoires"""
     __tablename__ = 'stories'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True, default=func.now())
-    current_state: Mapped[Dict[str, Any]] = mapped_column(JSON, default={})
-    is_completed: Mapped[bool] = mapped_column(default=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(200), nullable=False)
+    description = Column(String(1000), nullable=True)
+    current_state = Column(JSON, nullable=True, default={})
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc))
 
     # Relations
-    characters: Mapped[List[Character]] = relationship(
-        'Character', 
+    characters = relationship(
+        "Character", 
         secondary=story_characters, 
-        back_populates='stories'
+        back_populates="stories",
+        cascade="save-update, merge"
     )
-    actions: Mapped[List['Action']] = relationship('Action', back_populates='story')
-
-    def __repr__(self):
-        return f"<Story(id={self.id}, title='{self.title}')>"
+    actions = relationship("Action", back_populates="story", cascade="all, delete-orphan")
 
 
 class Action(Base):
-    """Modèle SQLAlchemy pour les actions des personnages"""
+    """Modèle SQLAlchemy pour les actions"""
     __tablename__ = 'actions'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    story_id: Mapped[int] = mapped_column(ForeignKey('stories.id'), nullable=False)
-    character_id: Mapped[int] = mapped_column(ForeignKey('characters.id'), nullable=False)
-    content: Mapped[str] = mapped_column(String(1000), nullable=False)
-    action_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    reaction: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    context: Mapped[Dict[str, Any]] = mapped_column(JSON, default={})
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True, default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    story_id = Column(Integer, ForeignKey('stories.id'), nullable=False)
+    character_id = Column(Integer, ForeignKey('characters.id'), nullable=False)
+    content = Column(String(1000), nullable=False)
+    action_type = Column(String(100), nullable=False)
+    reaction = Column(String(1000), nullable=True)
+    context = Column(JSON, nullable=True, default={})
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relations
-    story: Mapped[Story] = relationship('Story', back_populates='actions')
-    character: Mapped[Character] = relationship('Character', back_populates='actions')
-
-    def __repr__(self):
-        return f"<Action(id={self.id}, action_type='{self.action_type}')>"
+    story = relationship("Story", back_populates="actions")
+    character = relationship("Character", back_populates="actions")
 
 
 class Memory(Base):
-    """Modèle SQLAlchemy pour les mémoires des personnages"""
+    """Modèle SQLAlchemy pour les mémoires"""
     __tablename__ = 'memories'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    character_id: Mapped[int] = mapped_column(ForeignKey('characters.id'), nullable=False)
-    content: Mapped[str] = mapped_column(String(2000), nullable=False)
-    importance: Mapped[float] = mapped_column(default=0.5)
-    context: Mapped[Dict[str, Any]] = mapped_column(JSON, default={})
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True, default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    character_id = Column(Integer, ForeignKey('characters.id'), nullable=False)
+    content = Column(String(1000), nullable=False)
+    importance = Column(Float, default=0.5)
+    context = Column(JSON, nullable=True, default={})
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relations
-    character: Mapped[Character] = relationship('Character', back_populates='memories')
+    character = relationship("Character", back_populates="memories")
 
-    def __repr__(self):
-        return f"<Memory(id={self.id}, importance={self.importance})>"
-
-
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_session() -> AsyncSession:
     """
-    Générateur de sessions asynchrones pour les dépendances FastAPI
+    Fonction utilitaire pour obtenir une session asynchrone
     
-    Yields:
-        AsyncSession: Une session de base de données asynchrone
+    :return: Une session asynchrone
     """
-    try:
-        async with AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:
+        try:
             yield session
-    finally:
-        await session.close()
-
+        finally:
+            await session.close()
 
 async def init_models():
     """
-    Initialise les modèles de base de données.
-    Crée toutes les tables définies dans les modèles Base.
+    Initialise les modèles de base de données
+    Crée les tables si elles n'existent pas
     """
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

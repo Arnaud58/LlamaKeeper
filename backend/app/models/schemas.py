@@ -19,12 +19,13 @@ class CharacterBase(BaseModel):
     personality: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    async def to_sqlalchemy(self, session: Optional[AsyncSession] = None) -> SQLCharacter:
+    def to_sqlalchemy(self) -> SQLCharacter:
         """Convert Pydantic model to SQLAlchemy model"""
         return SQLCharacter(
             name=self.name,
             description=self.description,
-            personality=self.personality or {}
+            personality=self.personality or {},
+            created_at=datetime.now(timezone.utc)
         )
 
     @validator('name')
@@ -71,22 +72,19 @@ class StoryBase(BaseModel):
     current_state: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    async def to_sqlalchemy(self, session: Optional[AsyncSession] = None) -> SQLStory:
+    def to_sqlalchemy(self, character_list: Optional[List[SQLCharacter]] = None) -> SQLStory:
         """Convert Pydantic model to SQLAlchemy model"""
-        if session is None:
-            raise ValueError("Session is required for converting Story to SQLAlchemy model")
-
         story = SQLStory(
             title=self.title,
             description=self.description,
             current_state=self.current_state or {},
-            is_completed=False
+            is_completed=False,
+            created_at=datetime.now(timezone.utc)
         )
         
-        if self.character_ids:
-            characters_query = select(SQLCharacter).filter(SQLCharacter.id.in_(self.character_ids))
-            characters_result = await session.execute(characters_query)
-            story.characters.extend(characters_result.scalars().all())
+        # Ajouter les personnages si fournis
+        if character_list:
+            story.characters = character_list
         
         return story
 
@@ -138,7 +136,7 @@ class ActionBase(BaseModel):
     context: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    def to_sqlalchemy(self, session: Optional[AsyncSession] = None) -> SQLAction:
+    def to_sqlalchemy(self, story: Optional[SQLStory] = None, character: Optional[SQLCharacter] = None) -> SQLAction:
         """Convert Pydantic model to SQLAlchemy model"""
         return SQLAction(
             story_id=self.story_id,
@@ -146,7 +144,10 @@ class ActionBase(BaseModel):
             content=self.content,
             action_type=self.action_type,
             reaction=self.reaction,
-            context=self.context or {}
+            context=self.context or {},
+            created_at=datetime.now(timezone.utc),
+            story=story,
+            character=character
         )
 
     @validator('content')
@@ -196,27 +197,46 @@ class CharacterWithStories(Character):
     actions: List[Action] = []
 
 
-class Memory(BaseModel):
-    """Model for character memories"""
+class MemoryBase(BaseModel):
+    """Base model for character memories"""
 
-    id: Optional[int] = None
     character_id: int
     content: str
     importance: float = Field(default=0.5, ge=0, le=1)
     context: Optional[Dict[str, Any]] = None
-    created_at: Optional[datetime] = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
     model_config = ConfigDict(from_attributes=True)
 
-    def to_sqlalchemy(self, session: Optional[AsyncSession] = None) -> SQLMemory:
+    def to_sqlalchemy(self, character: Optional[SQLCharacter] = None) -> SQLMemory:
         """Convert Pydantic model to SQLAlchemy model"""
         return SQLMemory(
             character_id=self.character_id,
             content=self.content,
             importance=self.importance,
-            context=self.context or {}
+            context=self.context or {},
+            created_at=datetime.now(timezone.utc),
+            character=character
         )
+
+    @validator('content')
+    def validate_content(cls, v):
+        """Validate memory content"""
+        if not v or len(v.strip()) < 2:
+            raise ValueError("Memory content must be at least 2 characters long")
+        return v
+
+
+class MemoryCreate(MemoryBase):
+    """Model for creating a new memory"""
+    pass
+
+
+class Memory(MemoryBase):
+    """Model for returning memory details"""
+
+    id: Optional[int] = None
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
     @classmethod
     def from_sqlalchemy(cls, sql_memory: SQLMemory):
@@ -229,10 +249,3 @@ class Memory(BaseModel):
             context=sql_memory.context,
             created_at=sql_memory.created_at
         )
-
-    @validator('content')
-    def validate_content(cls, v):
-        """Validate memory content"""
-        if not v or len(v.strip()) < 2:
-            raise ValueError("Memory content must be at least 2 characters long")
-        return v

@@ -1,173 +1,133 @@
-import asyncio
+import json
 import logging
-from typing import Any, Dict, Optional
-
+from typing import Dict, Any, Optional
 import httpx
 
+from app.core.logging_config import error_tracker
 from app.utils.ai_model_plugin import BaseAIModelPlugin
-from app.utils.ollama_client import OllamaClient
-from app.utils.plugin_discovery import plugin_discoverable
 
-
-@plugin_discoverable(BaseAIModelPlugin)
 class OllamaModelPlugin(BaseAIModelPlugin):
-    """
-    Concrete implementation of Ollama AI Model Plugin
-    Provides advanced Ollama model integration with enhanced capabilities
-    """
-
-    def __init__(
-        self, model_name: str = "llama2", config: Optional[Dict[str, Any]] = None
-    ):
+    def __init__(self, base_url: str = "http://localhost:11434/api", model_name: str = "llama2"):
         """
-        Initialize Ollama model plugin
-
-        Args:
-            model_name (str): Name of the Ollama model
-            config (Dict, optional): Model-specific configuration
+        Initialize Ollama Model Plugin
+        
+        :param base_url: Base URL for Ollama API
+        :param model_name: Name of the model to use
         """
-        super().__init__(model_name, config or {})
-
-        # Default configuration
-        self._default_config = {
-            "base_url": "http://localhost:11434/api",
+        self._config = {
+            "base_url": base_url,
+            "model": model_name,
             "timeout": 60.0,
             "max_tokens": 500,
             "temperature": 0.7,
-            "top_p": 0.9,
+            "top_p": 0.9
         }
-
-        # Merge default and provided configuration
-        self._config = {**self._default_config, **self._config}
-
-        # Initialize Ollama client
-        self._ollama_client = OllamaClient(
-            base_url=self._config["base_url"],
-            timeout=self._config["timeout"],
-            default_model=model_name,
-        )
-
-        # Setup logging
-        self._logger = logging.getLogger(f"OllamaModelPlugin.{model_name}")
-        self._logger.setLevel(logging.INFO)
-
-    async def generate_text(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]] = None,
-        parameters: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Generate text using the Ollama model
-
-        Args:
-            prompt (str): Input prompt for text generation
-            context (Dict, optional): Contextual information for generation
-            parameters (Dict, optional): Model-specific generation parameters
-
-        Returns:
-            str: Generated text
-        """
-        try:
-            # Merge default and provided parameters
-            generation_params = {
-                "max_tokens": self._config["max_tokens"],
-                "temperature": self._config["temperature"],
-                "top_p": self._config["top_p"],
-            }
-
-            if parameters:
-                generation_params.update(parameters)
-
-            # Generate text using Ollama client
-            generated_text = await self._ollama_client.generate_text(
-                prompt=prompt, model=self._model_name, **generation_params
-            )
-
-            self._logger.info(f"Generated text for prompt: {prompt[:50]}...")
-            return generated_text
-
-        except Exception as e:
-            self._logger.error(f"Text generation error: {e}")
-            raise
+        self._model_name = model_name
 
     def get_model_metadata(self) -> Dict[str, Any]:
         """
-        Retrieve comprehensive metadata about the Ollama model
-
-        Returns:
-            Dict: Model metadata (capabilities, version, etc.)
+        Retrieve metadata about the current model
+        
+        :return: Dictionary containing model metadata
         """
-        metadata = super().get_model_metadata()
-
-        # Add Ollama-specific metadata
-        metadata.update(
-            {
-                "provider": "Ollama",
-                "base_url": self._config["base_url"],
-                "max_tokens": self._config["max_tokens"],
-                "generation_params": {
-                    "temperature": self._config["temperature"],
-                    "top_p": self._config["top_p"],
-                },
+        return {
+            "model_name": self._model_name,
+            "provider": "Ollama",
+            "base_url": self._config["base_url"],
+            "max_tokens": self._config["max_tokens"],
+            "generation_params": {
+                "temperature": self._config["temperature"],
+                "top_p": self._config["top_p"]
             }
-        )
-
-        return metadata
+        }
 
     def validate_configuration(self, config: Dict[str, Any]) -> bool:
         """
-        Validate the configuration for the Ollama model
-
-        Args:
-            config (Dict): Model configuration parameters
-
-        Returns:
-            bool: Whether the configuration is valid
+        Validate the configuration parameters for the Ollama model.
+        
+        :param config: Configuration dictionary to validate
+        :return: True if configuration is valid, False otherwise
         """
-        # Validate base configuration
-        if not super().validate_configuration(config):
-            return False
+        # Merge default config with provided config
+        merged_config = {**self._config, **config}
+        
+        # Validate temperature
+        if 'temperature' in merged_config:
+            temp = merged_config['temperature']
+            if not (0 <= temp <= 1):
+                logging.warning("Temperature must be between 0 and 1")
+                error_tracker.log_error("Invalid temperature", {"value": temp})
+                return False
+        
+        # Validate top_p
+        if 'top_p' in merged_config:
+            top_p = merged_config['top_p']
+            if not (0 <= top_p <= 1):
+                logging.warning("Top_p must be between 0 and 1")
+                error_tracker.log_error("Invalid top_p", {"value": top_p})
+                return False
+        
+        # Validate max_tokens
+        if 'max_tokens' in merged_config:
+            max_tokens = merged_config['max_tokens']
+            if max_tokens <= 0:
+                logging.warning("Max tokens must be positive")
+                error_tracker.log_error("Invalid max tokens", {"value": max_tokens})
+                return False
+        
+        return True
 
-        # Ollama-specific validations
+    async def generate_text(self, prompt: str, **kwargs) -> str:
+        """
+        Generate text using the Ollama API.
+        
+        :param prompt: Input prompt for text generation
+        :param kwargs: Optional configuration parameters
+        :return: Generated text
+        :raises Exception: If text generation fails
+        """
+        # Extract configuration from kwargs or use default
+        config = kwargs.get('config', {})
+        
+        # Validate configuration
+        if config:
+            if not self.validate_configuration(config):
+                raise ValueError("Invalid configuration parameters")
+        
+        # Merge default and provided config
+        generation_config = {**self._config, **config}
+        
+        # Validate prompt
+        if not prompt or not prompt.strip():
+            error_tracker.log_error("Empty prompt provided")
+            raise ValueError("Prompt cannot be empty")
+        
         try:
-            # Validate temperature
-            if "temperature" in config:
-                temp = config["temperature"]
-                if not (0 <= temp <= 1):
-                    self._logger.warning("Temperature must be between 0 and 1")
-                    return False
-
-            # Validate top_p
-            if "top_p" in config:
-                top_p = config["top_p"]
-                if not (0 <= top_p <= 1):
-                    self._logger.warning("Top_p must be between 0 and 1")
-                    return False
-
-            # Validate max_tokens
-            if "max_tokens" in config:
-                max_tokens = config["max_tokens"]
-                if max_tokens <= 0:
-                    self._logger.warning("Max tokens must be positive")
-                    return False
-
-            return True
-
+            async with httpx.AsyncClient(timeout=generation_config.get('timeout', 60.0)) as client:
+                response = await client.post(
+                    f"{generation_config['base_url']}/generate", 
+                    json={
+                        "model": generation_config["model"],
+                        "prompt": prompt,
+                        "temperature": generation_config["temperature"],
+                        "top_p": generation_config["top_p"],
+                        "max_tokens": generation_config["max_tokens"]
+                    }
+                )
+                
+                # Raise an exception for HTTP errors
+                response.raise_for_status()
+                
+                # Log successful text generation
+                logging.info(f"Generated text for prompt: {prompt[:50]}...")
+                
+                # Parse and return the generated text
+                return response.text
+        
+        except httpx.HTTPStatusError as e:
+            error_tracker.log_error(f"HTTP error during text generation: {str(e)}")
+            raise
+        
         except Exception as e:
-            self._logger.error(f"Configuration validation error: {e}")
-            return False
-
-    async def __aenter__(self):
-        """
-        Async context manager entry method
-        Ensures Ollama client is ready
-        """
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """
-        Async context manager exit method
-        Closes Ollama client
-        """
-        await self._ollama_client.close()
+            error_tracker.log_error(f"Unexpected error during text generation: {str(e)}")
+            raise

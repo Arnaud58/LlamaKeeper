@@ -15,7 +15,7 @@ async def test_create_character(async_session: AsyncSession):
         description="A character for testing"
     )
     
-    character = await character_data.to_sqlalchemy(async_session)
+    character = character_data.to_sqlalchemy()
     async_session.add(character)
     await async_session.commit()
     await async_session.refresh(character)
@@ -33,7 +33,7 @@ async def test_create_story(async_session: AsyncSession):
         name="Story Character",
         description="Character for story testing"
     )
-    character = await character_data.to_sqlalchemy(async_session)
+    character = character_data.to_sqlalchemy()
     async_session.add(character)
     await async_session.commit()
     await async_session.refresh(character)
@@ -64,7 +64,7 @@ async def test_create_action(async_session: AsyncSession):
         name="Action Character",
         description="Character for action testing"
     )
-    character = await character_data.to_sqlalchemy(async_session)
+    character = character_data.to_sqlalchemy()
     async_session.add(character)
 
     story_data = schemas.StoryCreate(
@@ -82,9 +82,7 @@ async def test_create_action(async_session: AsyncSession):
         story_id=story.id,
         character_id=character.id,
         content="Performed a heroic deed",
-        action_type="physical",
-        reaction="The crowd cheered",
-        context={"location": "town square", "time_of_day": "afternoon"}
+        action_type="physical"
     )
 
     action = action_data.to_sqlalchemy()
@@ -105,8 +103,8 @@ async def test_character_relationships(async_session: AsyncSession):
     character1_data = schemas.CharacterCreate(name="Character 1")
     character2_data = schemas.CharacterCreate(name="Character 2")
 
-    character1 = await character1_data.to_sqlalchemy(async_session)
-    character2 = await character2_data.to_sqlalchemy(async_session)
+    character1 = character1_data.to_sqlalchemy()
+    character2 = character2_data.to_sqlalchemy()
 
     story_data = schemas.StoryCreate(
         title="Relationship Test Story",
@@ -134,12 +132,12 @@ async def test_create_memory(async_session: AsyncSession):
         name="Memory Character",
         description="Character for memory testing"
     )
-    character = await character_data.to_sqlalchemy(async_session)
+    character = character_data.to_sqlalchemy()
     async_session.add(character)
     await async_session.commit()
     await async_session.refresh(character)
 
-    memory_data = schemas.Memory(
+    memory_data = schemas.MemoryCreate(
         character_id=character.id,
         content="A significant memory",
         importance=0.8,
@@ -189,7 +187,7 @@ def test_action_validation():
 def test_memory_validation():
     """Test memory model validation"""
     with pytest.raises(ValidationError):
-        schemas.Memory(
+        schemas.MemoryCreate(
             character_id=1,
             content="",
             importance=0.5

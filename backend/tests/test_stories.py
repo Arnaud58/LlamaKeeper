@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from app.models import database as db_models
 from app.api.schemas import StoryCreate, StoryResponse
@@ -32,9 +33,22 @@ async def test_create_story(test_client, async_session: AsyncSession):
     assert story.current_state == {"scene": "introduction"}
     assert story.id is not None
 
+    # Vérifier que l'histoire est bien associée au personnage
+    result = await async_session.execute(
+        select(db_models.Story).filter(db_models.Story.id == story.id)
+    )
+    db_story = result.scalar_one_or_none()
+    assert db_story is not None
+    assert len(db_story.characters) == 1
+    assert db_story.characters[0].id == character['id']
+
 @pytest.mark.asyncio
 async def test_list_stories(test_client, async_session: AsyncSession):
     """Test listing stories with pagination"""
+    # Nettoyer les histoires existantes
+    await async_session.execute(db_models.Story.__table__.delete())
+    await async_session.commit()
+
     # Create a character first
     character_response = test_client.post("/api/v1/characters/", json={
         "name": "Story List Character",
@@ -43,12 +57,15 @@ async def test_list_stories(test_client, async_session: AsyncSession):
     character = character_response.json()
     
     # Create a few test stories
-    for i in range(3):
-        story_data = {
+    test_stories = [
+        {
             "title": f"Test Story {i}",
             "description": f"Test description {i}",
             "character_ids": [character['id']]
-        }
+        } for i in range(3)
+    ]
+
+    for story_data in test_stories:
         test_client.post("/api/v1/stories/", json=story_data)
     
     response = test_client.get("/api/v1/stories/")
@@ -56,12 +73,13 @@ async def test_list_stories(test_client, async_session: AsyncSession):
     assert response.status_code == 200
     
     stories = response.json()
-    assert len(stories) >= 3
+    assert len(stories) == 3
     
     # Verify response schema
     for story in stories:
         story_model = StoryResponse(**story)
         assert story_model.title.startswith("Test Story")
+        assert story_model.description.startswith("Test description")
 
 @pytest.mark.asyncio
 async def test_get_story(test_client, async_session: AsyncSession):
@@ -75,7 +93,7 @@ async def test_get_story(test_client, async_session: AsyncSession):
     
     # Create a story
     story_data = {
-        "title": "Unique Story",
+        "title": "Test Story for Retrieval",
         "description": "A story to be retrieved",
         "character_ids": [character['id']]
     }
@@ -88,7 +106,7 @@ async def test_get_story(test_client, async_session: AsyncSession):
     assert response.status_code == 200
     
     story = StoryResponse(**response.json())
-    assert story.title == "Unique Story"
+    assert story.title == "Test Story for Retrieval"
     assert story.description == "A story to be retrieved"
 
 @pytest.mark.asyncio
