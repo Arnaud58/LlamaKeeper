@@ -1,0 +1,72 @@
+<div x-data="storyList">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-semibold">Stories</h2>
+        <button 
+            hx-get="/api/v1/stories/new" 
+            hx-target="#modal-container"
+            class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+            Create New Story
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="story in stories" :key="story.id">
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h3 x-text="story.title" class="text-xl font-bold mb-2"></h3>
+                <p x-text="story.description" class="text-gray-600 mb-4"></p>
+                <div class="flex space-x-2">
+                    <button 
+                        hx-get=`/api/v1/stories/${story.id}`
+                        hx-target="#modal-container"
+                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        View
+                    </button>
+                    <button 
+                        hx-get=`/api/v1/stories/${story.id}/edit`
+                        hx-target="#modal-container"
+                        class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+                        Edit
+                    </button>
+                    <button 
+                        hx-delete=`/api/v1/stories/${story.id}`
+                        hx-confirm="Are you sure you want to delete this story?"
+                        hx-target="closest div"
+                        hx-swap="outerHTML"
+                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                        Delete
+                    </button>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-semibold">Characters:</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="character in story.characters">
+                            <span 
+                                x-text="character.name" 
+                                class="bg-gray-200 px-2 py-1 rounded text-sm">
+                            </span>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script>
+    function storyList() {
+        return {
+            stories: [],
+            async fetchStories() {
+                try {
+                    const response = await fetch('/api/v1/stories');
+                    this.stories = await response.json();
+                } catch (error) {
+                    console.error('Failed to fetch stories:', error);
+                }
+            },
+            init() {
+                this.fetchStories();
+            }
+        }
+    }
+    </script>
+</div>
