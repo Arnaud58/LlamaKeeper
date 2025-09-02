@@ -1,26 +1,44 @@
 from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKey, Table, Boolean
-from sqlalchemy.orm import relationship, declarative_base, sessionmaker
+from sqlalchemy.orm import relationship, declarative_base, sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from datetime import datetime, timezone
+import logging
+
+from app.core.config import settings
+
+# Configuration du logging
+logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
-# Configuration de la base de données
-DATABASE_URL = "sqlite+aiosqlite:///./ai_dungeon.db"
+# Configuration de la base de données utilisant la configuration centralisée
+DATABASE_URL = settings.SQLALCHEMY_DATABASE_URI
+logger.info(f"Configuration de la base de données : {DATABASE_URL}")
 
 # Création de l'engine asynchrone
-async_engine = create_async_engine(
-    DATABASE_URL, 
-    echo=False,
-    future=True
-)
+try:
+    async_engine = create_async_engine(
+        DATABASE_URL, 
+        echo=settings.DEBUG,
+        future=True
+    )
+    logger.info("Engine asynchrone créé avec succès")
+except Exception as e:
+    logger.error(f"Erreur lors de la création de l'engine asynchrone : {e}")
+    raise
 
 # Création du générateur de session asynchrone
-AsyncSessionLocal = async_sessionmaker(
-    async_engine, 
-    class_=AsyncSession, 
-    expire_on_commit=False
-)
+try:
+    AsyncSessionLocal = async_sessionmaker(
+        async_engine, 
+        class_=AsyncSession, 
+        expire_on_commit=False
+    )
+    logger.info("Générateur de session asynchrone créé avec succès")
+except Exception as e:
+    logger.error(f"Erreur lors de la création du générateur de session : {e}")
+    raise
 
 # Table d'association pour la relation many-to-many entre Story et Character
 story_characters = Table(
@@ -65,10 +83,11 @@ class Story(Base):
 
     # Relations
     characters = relationship(
-        "Character", 
-        secondary=story_characters, 
+        "Character",
+        secondary=story_characters,
         back_populates="stories",
-        cascade="save-update, merge"
+        cascade="save-update, merge",
+        lazy="joined"  # Forcer le chargement immédiat
     )
     actions = relationship("Action", back_populates="story", cascade="all, delete-orphan")
 
@@ -105,22 +124,39 @@ class Memory(Base):
     # Relations
     character = relationship("Character", back_populates="memories")
 
+
 async def get_async_session() -> AsyncSession:
     """
     Fonction utilitaire pour obtenir une session asynchrone
     
     :return: Une session asynchrone
     """
+    logger.debug("Tentative d'obtention d'une session asynchrone")
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            logger.debug("Session asynchrone obtenue avec succès")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'obtention de la session : {e}")
+            raise
         finally:
             await session.close()
+            logger.debug("Session asynchrone fermée")
+
 
 async def init_models():
     """
     Initialise les modèles de base de données
     Crée les tables si elles n'existent pas
     """
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Initialisation des modèles de base de données")
+    try:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Création des tables réussie")
+    except Exception as e:
+        logger.error(f"Erreur lors de la création des tables : {e}")
+        raise
+
+# Exporter explicitement les modèles
+__all__ = ['Character', 'Story', 'Action', 'Memory', 'get_async_session', 'init_models']

@@ -5,10 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.main import app
 from app.api.schemas import CharacterCreate, CharacterResponse
 
+@pytest.fixture(scope="module")
+def test_client_app():
+    return app
+
 @pytest.mark.asyncio
-async def test_create_character(async_session: AsyncSession):
+async def test_create_character(async_session: AsyncSession, test_client_app):
     """Test creating a new character"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(base_url="http://test", app=test_client_app) as client:
         character_data = {
             "name": "Test Character",
             "description": "A test character for unit testing",
@@ -26,9 +30,9 @@ async def test_create_character(async_session: AsyncSession):
         assert character.id is not None
 
 @pytest.mark.asyncio
-async def test_list_characters(async_session: AsyncSession):
+async def test_list_characters(async_session: AsyncSession, test_client_app):
     """Test listing characters with pagination"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(base_url="http://test", app=test_client_app) as client:
         # Create a few test characters first
         for i in range(3):
             character_data = {
@@ -38,6 +42,9 @@ async def test_list_characters(async_session: AsyncSession):
             await client.post("/api/v1/characters/", json=character_data)
         
         response = await client.get("/api/v1/characters/")
+        
+        print(f"DEBUG: Response status code: {response.status_code}")
+        print(f"DEBUG: Response content: {response.text}")
         
         assert response.status_code == 200
         
@@ -50,9 +57,9 @@ async def test_list_characters(async_session: AsyncSession):
             assert character_model.name.startswith("Test Character")
 
 @pytest.mark.asyncio
-async def test_get_character(async_session: AsyncSession):
+async def test_get_character(async_session: AsyncSession, test_client_app):
     """Test retrieving a specific character"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(base_url="http://test", app=test_client_app) as client:
         # First, create a character
         character_data = {
             "name": "Unique Character",
@@ -71,9 +78,9 @@ async def test_get_character(async_session: AsyncSession):
         assert character.description == "A character to be retrieved"
 
 @pytest.mark.asyncio
-async def test_update_character(async_session: AsyncSession):
+async def test_update_character(async_session: AsyncSession, test_client_app):
     """Test updating an existing character"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(base_url="http://test", app=test_client_app) as client:
         # First, create a character
         character_data = {
             "name": "Original Character",
@@ -96,9 +103,9 @@ async def test_update_character(async_session: AsyncSession):
         assert updated_character.description == "Updated description"
 
 @pytest.mark.asyncio
-async def test_delete_character(async_session: AsyncSession):
+async def test_delete_character(async_session: AsyncSession, test_client_app):
     """Test deleting a character"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(base_url="http://test", app=test_client_app) as client:
         # First, create a character
         character_data = {
             "name": "Character to Delete",

@@ -1,50 +1,36 @@
-# Changelog
+# Changelog - Gestion de Base de Données et Migrations
 
-## [0.1.0] - 2025-08-29 (Date de la première version stable)
+## [2025-09-02] - Résolution des Problèmes de Migration
 
-### Ajouts
-- Architecture de base du projet LlamaKeeper
-- API RESTful asynchrone avec FastAPI
-- Gestion des personnages et des histoires
-- Système de base de données SQLAlchemy asynchrone
-- Support initial des modèles IA via Ollama
-- Système de tests complet
-  - Tests unitaires pour les personnages et les histoires
-  - Gestion des erreurs
-  - Couverture de code
+### 🐛 Problèmes Résolus
+- Correction des incohérences de configuration de base de données
+- Résolution des problèmes de migration SQLAlchemy/Alembic
+- Synchronisation des configurations asynchrones et synchrones
 
-### Fonctionnalités
-- Création, lecture, mise à jour et suppression de personnages
-- Création, lecture, mise à jour et suppression d'histoires
-- Validation des données avec Pydantic
-- Gestion des erreurs personnalisée
-- Configuration de développement et de déploiement
-- Documentation complète
+### 🔧 Modifications Techniques
+- Mise à jour de `database.py` pour utiliser une configuration centralisée
+- Ajout de logs de débogage détaillés pour la connexion à la base de données
+- Création d'un script de test de connexion et de création de modèles
+- Réinitialisation et mise à jour des migrations Alembic
 
-### Améliorations
-- Configuration de mypy pour le typage statique
-- Formatage du code avec black et isort
-- Scripts de configuration de l'environnement
-- Guide de contribution détaillé
+### 📝 Nouveaux Documents
+- Ajout de `MIGRATION_TROUBLESHOOTING.md`
+  * Guide complet de dépannage des migrations
+  * Stratégies de résolution des problèmes courants
+  * Bonnes pratiques de gestion de base de données
 
-### Dépendances Principales
-- FastAPI
-- SQLAlchemy (Async)
-- Pydantic
-- Ollama
-- Pytest
+### 🔍 Détails Techniques
+- Configuration de base de données unifiée via `config.py`
+- Utilisation systématique de `settings.SQLALCHEMY_DATABASE_URI`
+- Gestion dynamique des URL de base de données
+- Logs de migration et de connexion améliorés
 
-### Problèmes Connus
-- Aucun problème majeur identifié à ce stade
+### 🚀 Améliorations
+- Meilleure traçabilité des opérations de base de données
+- Configuration plus robuste et flexible
+- Processus de migration plus fiable
 
-### Notes de Version
-- Version initiale du projet
-- Implémentation des fonctionnalités de base
-- Architecture modulaire et extensible
-- Prêt pour les premiers tests et retours utilisateurs
-
-## Prochaines Étapes
-- Amélioration de l'intégration IA
-- Développement de fonctionnalités avancées de génération d'histoires
-- Optimisation des performances
-- Ajout de plus de tests de couverture
+## Recommandations Futures
+- Maintenir une configuration centralisée
+- Utiliser systématiquement `alembic revision --autogenerate`
+- Tester les migrations avant le déploiement

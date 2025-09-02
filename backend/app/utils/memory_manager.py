@@ -38,15 +38,23 @@ class MemoryManager:
             memory_context = memory.context or {}
 
             relevance_score = 0
+            print(f"DEBUG: Calculating relevance for memory {memory.id}")
+            print(f"DEBUG: Current context: {context}")
+            print(f"DEBUG: Memory context: {memory_context}")
+
+            # Context matching
             for key, value in context.items():
                 if key in memory_context and memory_context[key] == value:
+                    print(f"DEBUG: Context match for key {key}")
                     relevance_score += 0.5
-
-                # Additional text-based similarity could be added here
+                else:
+                    print(f"DEBUG: No context match for key {key}")
 
             # Incorporate memory importance
+            print(f"DEBUG: Memory importance: {memory.importance}")
             relevance_score += memory.importance
 
+            print(f"DEBUG: Final relevance score for memory {memory.id}: {relevance_score}")
             return relevance_score
 
         # Execute query and calculate relevance
@@ -54,21 +62,33 @@ class MemoryManager:
         memories = result.scalars().all()
 
         # Sort memories by relevance
-        relevant_memories = sorted(memories, key=calculate_relevance, reverse=True)[
-            :top_k
-        ]
-
-        # Convert to dictionary for easier serialization
-        return [
-            {
-                "id": memory.id,
-                "content": memory.content,
-                "importance": memory.importance,
-                "context": memory.context,
-                "created_at": memory.created_at.isoformat(),
-            }
-            for memory in relevant_memories
-        ]
+        # Calculer les scores de pertinence pour chaque mémoire
+        memory_scores = [(memory, calculate_relevance(memory)) for memory in memories]
+        
+        # Trier par score de pertinence décroissant
+        sorted_memories = sorted(memory_scores, key=lambda x: x[1], reverse=True)
+        
+        # Sélectionner les top_k mémoires
+        top_memories = sorted_memories[:top_k]
+        
+        # Convertir en dictionnaire pour la sérialisation
+        # Trier explicitement par importance décroissante
+        sorted_top_memories = sorted(
+            [
+                {
+                    "id": memory.id,
+                    "content": memory.content,
+                    "importance": memory.importance,
+                    "context": memory.context,
+                    "created_at": memory.created_at.isoformat(),
+                }
+                for memory, _ in top_memories
+            ],
+            key=lambda x: x['importance'],
+            reverse=True
+        )
+        
+        return sorted_top_memories
 
     async def create_memory(
         self,

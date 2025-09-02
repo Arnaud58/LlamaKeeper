@@ -72,8 +72,9 @@ class StoryBase(BaseModel):
     current_state: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    def to_sqlalchemy(self, character_list: Optional[List[SQLCharacter]] = None) -> SQLStory:
+    async def to_sqlalchemy(self, session: Optional[AsyncSession] = None) -> SQLStory:
         """Convert Pydantic model to SQLAlchemy model"""
+        # Créer l'histoire
         story = SQLStory(
             title=self.title,
             description=self.description,
@@ -82,9 +83,20 @@ class StoryBase(BaseModel):
             created_at=datetime.now(timezone.utc)
         )
         
-        # Ajouter les personnages si fournis
-        if character_list:
-            story.characters = character_list
+        # Si des IDs de personnages sont fournis et une session est disponible
+        if self.character_ids and session:
+            # Récupérer explicitement les personnages
+            characters_query = select(SQLCharacter).where(SQLCharacter.id.in_(self.character_ids))
+            result = await session.execute(characters_query)
+            characters = list(result.scalars().all())
+            
+            # Vérifier que tous les personnages ont été trouvés
+            if len(characters) != len(self.character_ids):
+                missing_ids = set(self.character_ids) - set(char.id for char in characters)
+                raise ValueError(f"Characters with IDs {missing_ids} not found")
+            
+            # Utiliser l'association explicite
+            story.characters = characters
         
         return story
 

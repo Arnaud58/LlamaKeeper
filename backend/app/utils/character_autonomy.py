@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.models import database
 from app.models import schemas as db_models
 from app.utils.memory_manager import MemoryManager
 from app.utils.ollama_client import OllamaClient
@@ -29,36 +30,47 @@ class CharacterAutonomySystem:
         Returns:
             Dict: Generated character action
         """
-        # Retrieve character details
-        character = await self._get_character(character_id)
+        try:
+            # Retrieve character details
+            character = await self._get_character(character_id)
 
-        # Retrieve relevant memories
-        relevant_memories = await self.memory_manager.retrieve_relevant_memories(
-            character_id, story_context
-        )
+            # Retrieve relevant memories
+            relevant_memories = await self.memory_manager.retrieve_relevant_memories(
+                character_id, story_context
+            )
 
-        # Prepare prompt for action generation
-        prompt = self._construct_action_prompt(
-            character, story_context, recent_actions, relevant_memories
-        )
+            # Prepare prompt for action generation
+            prompt = self._construct_action_prompt(
+                character, story_context, recent_actions, relevant_memories
+            )
 
-        # Generate action using Ollama
-        action_response = await self.ollama_client.generate_text(
-            model="character-action-model", prompt=prompt
-        )
+            # Generate action using Ollama
+            action_response = await self.ollama_client.generate_text(
+                model="character-action-model", prompt=prompt
+            )
 
-        # Parse and validate action
-        parsed_action = self._parse_action(action_response, character)
+            # Parse and validate action
+            parsed_action = self._parse_action(action_response, character)
 
-        # Create and store memory of the action
-        await self._create_action_memory(character, parsed_action)
+            # Create and store memory of the action
+            await self._create_action_memory(character, parsed_action)
 
-        return parsed_action
+            return parsed_action
 
-    async def _get_character(self, character_id: str) -> db_models.Character:
+        except Exception as e:
+            # Fallback to a default action if any error occurs
+            return {
+                "action_type": "internal_thought",
+                "content": f"I'm unsure what to do next. An unexpected error occurred: {str(e)}",
+                "emotional_state": "confused",
+                "motivation": "processing unexpected situation",
+                "character_id": character_id,
+            }
+
+    async def _get_character(self, character_id: str) -> database.Character:
         """Retrieve character details from database"""
         result = await self.session.execute(
-            select(db_models.Character).where(db_models.Character.id == character_id)
+            select(database.Character).where(database.Character.id == character_id)
         )
         character = result.scalar_one_or_none()
 
@@ -69,7 +81,7 @@ class CharacterAutonomySystem:
 
     def _construct_action_prompt(
         self,
-        character: db_models.Character,
+        character: database.Character,
         story_context: Dict,
         recent_actions: List[Dict],
         relevant_memories: List[Dict],
@@ -120,7 +132,7 @@ class CharacterAutonomySystem:
         )
 
     def _parse_action(
-        self, action_response: str, character: db_models.Character
+        self, action_response: str, character: database.Character
     ) -> Dict:
         """
         Parse and validate the generated action
@@ -161,7 +173,7 @@ class CharacterAutonomySystem:
                 "character_id": character.id,
             }
 
-    async def _create_action_memory(self, character: db_models.Character, action: Dict):
+    async def _create_action_memory(self, character: database.Character, action: Dict):
         """
         Create a memory from the generated action
 
@@ -182,7 +194,7 @@ class CharacterAutonomySystem:
             action.get("emotional_state", "neutral"), 0.5
         )
 
-        memory = db_models.Memory(
+        memory = database.Memory(
             character_id=character.id,
             content=json.dumps(action),
             importance=importance,

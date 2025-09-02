@@ -23,8 +23,17 @@ from app.models.database import Base, init_models
 from app.main import app
 
 # Configuration de la base de données de test
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_ai_dungeon.db"
-SYNC_TEST_DATABASE_URL = "sqlite:///./test_ai_dungeon.db"
+import os
+
+TEST_DATABASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "test_ai_dungeon.db"))
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{TEST_DATABASE_PATH}"
+SYNC_TEST_DATABASE_URL = f"sqlite:///{TEST_DATABASE_PATH}"
+
+# Supprimer le fichier de base de données existant avant de créer un nouveau
+try:
+    os.remove(TEST_DATABASE_PATH)
+except FileNotFoundError:
+    pass
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -41,12 +50,13 @@ def event_loop():
 async def async_engine():
     """Créer un moteur SQLAlchemy asynchrone pour les tests"""
     engine = create_async_engine(
-        TEST_DATABASE_URL, 
+        TEST_DATABASE_URL,
         echo=False,
         future=True,
         connect_args={
             "check_same_thread": False,
-            "cached_statements": True
+            "cached_statements": True,
+            "timeout": 30  # Augmenter le délai de verrouillage
         },
         poolclass=StaticPool
     )
@@ -64,13 +74,18 @@ async def async_engine():
         raise
     finally:
         await engine.dispose()
+        # Supprimer le fichier de base de données après les tests
+        try:
+            os.remove(TEST_DATABASE_PATH)
+        except FileNotFoundError:
+            pass
 
 @pytest_asyncio.fixture(scope="function")
 async def async_session(async_engine):
     """Créer une session de base de données asynchrone pour chaque test"""
     async_session_factory = async_sessionmaker(
-        async_engine, 
-        class_=AsyncSession, 
+        async_engine,
+        class_=AsyncSession,
         expire_on_commit=False
     )
     
@@ -88,6 +103,12 @@ async def async_session(async_engine):
             raise
         finally:
             await session.close()
+            # Supprimer le fichier de base de données après le test
+            import os
+            try:
+                os.remove("./test_ai_dungeon.db")
+            except FileNotFoundError:
+                pass
 
 @pytest.fixture
 def test_client():
@@ -97,13 +118,24 @@ def test_client():
 @pytest_asyncio.fixture
 async def async_test_client():
     """Créer un client de test asynchrone pour FastAPI"""
-    async with AsyncClient(base_url="http://test", app=app) as client:
-        try:
-            logger.info("Client de test asynchrone créé avec succès")
-            yield client
-        except Exception as e:
-            logger.error(f"Erreur lors de la création du client de test asynchrone : {e}")
-            raise
+    from httpx import AsyncClient
+    from fastapi.testclient import TestClient
+    
+    test_client = TestClient(app)
+    async_client = AsyncClient(
+        base_url="http://test",
+        app=test_client.app,
+        transport=test_client.transport
+    )
+    
+    try:
+        logger.info("Client de test asynchrone créé avec succès")
+        yield async_client
+    except Exception as e:
+        logger.error(f"Erreur lors de la création du client de test asynchrone : {e}")
+        raise
+    finally:
+        await async_client.aclose()
 
 # Fixture pour mocker
 @pytest.fixture

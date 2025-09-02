@@ -58,18 +58,28 @@ async def test_retrieve_relevant_memories(async_session):
     
     # Retrieve relevant memories
     context = {"type": "test", "index": 2}
+    print(f"DEBUG: Context for memory retrieval: {context}")
+    print(f"DEBUG: Created memories: {[{'id': m.id, 'importance': m.importance, 'context': m.context} for m in memories]}")
+    
     relevant_memories = await memory_manager.retrieve_relevant_memories(
         character_id=character.id,
         context=context,
         top_k=3
     )
     
-    assert len(relevant_memories) > 0
-    assert len(relevant_memories) <= 3
+    print(f"DEBUG: Retrieved relevant memories: {relevant_memories}")
+    
+    assert len(relevant_memories) > 0, "No relevant memories retrieved"
+    assert len(relevant_memories) <= 3, f"Retrieved more than 3 memories: {len(relevant_memories)}"
     
     # Check that memories are sorted by relevance
     importances = [memory['importance'] for memory in relevant_memories]
-    assert importances == sorted(importances, reverse=True)
+    print(f"DEBUG: Importances of retrieved memories: {importances}")
+    
+    sorted_importances = sorted(importances, reverse=True)
+    print(f"DEBUG: Sorted importances: {sorted_importances}")
+    
+    assert importances == sorted_importances, f"Memories not sorted by importance. Got {importances}, expected {sorted_importances}"
 
 @pytest.mark.asyncio
 async def test_update_memory_importance(async_session):

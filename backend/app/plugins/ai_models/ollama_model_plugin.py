@@ -51,29 +51,54 @@ class OllamaModelPlugin(BaseAIModelPlugin):
         # Merge default config with provided config
         merged_config = {**self._config, **config}
         
+        validation_errors = []
+        
         # Validate temperature
         if 'temperature' in merged_config:
             temp = merged_config['temperature']
-            if not (0 <= temp <= 1):
-                logging.warning("Temperature must be between 0 and 1")
-                error_tracker.log_error("Invalid temperature", {"value": temp})
-                return False
+            if not isinstance(temp, (int, float)) or not (0 <= temp <= 1):
+                validation_errors.append({
+                    'field': 'temperature',
+                    'message': "Temperature must be a number between 0 and 1",
+                    'value': temp
+                })
         
         # Validate top_p
         if 'top_p' in merged_config:
             top_p = merged_config['top_p']
-            if not (0 <= top_p <= 1):
-                logging.warning("Top_p must be between 0 and 1")
-                error_tracker.log_error("Invalid top_p", {"value": top_p})
-                return False
+            if not isinstance(top_p, (int, float)) or not (0 <= top_p <= 1):
+                validation_errors.append({
+                    'field': 'top_p',
+                    'message': "Top_p must be a number between 0 and 1",
+                    'value': top_p
+                })
         
         # Validate max_tokens
         if 'max_tokens' in merged_config:
             max_tokens = merged_config['max_tokens']
-            if max_tokens <= 0:
-                logging.warning("Max tokens must be positive")
-                error_tracker.log_error("Invalid max tokens", {"value": max_tokens})
-                return False
+            if not isinstance(max_tokens, int) or max_tokens <= 0:
+                validation_errors.append({
+                    'field': 'max_tokens',
+                    'message': "Max tokens must be a positive integer",
+                    'value': max_tokens
+                })
+        
+        # Validate base_url
+        if 'base_url' in merged_config:
+            base_url = merged_config['base_url']
+            if not isinstance(base_url, str) or not base_url.startswith(('http://', 'https://')):
+                validation_errors.append({
+                    'field': 'base_url',
+                    'message': "Base URL must be a valid HTTP/HTTPS URL",
+                    'value': base_url
+                })
+        
+        # Log all validation errors
+        if validation_errors:
+            for error in validation_errors:
+                logging.warning(f"{error['field']}: {error['message']}")
+                error_tracker.log_error(error['message'], {'value': error['value']})
+            return False
         
         return True
 
