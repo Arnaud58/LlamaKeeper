@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 from typing import Dict, Any
 
 class ErrorTracker:
@@ -75,7 +76,7 @@ def configure_logging():
     root_logger.addHandler(console_handler)
 
     # File handler (optional, can be modified based on specific requirements)
-    file_handler = logging.FileHandler('/tmp/app.log')  # Actual log file for testing
+    file_handler = logging.FileHandler(os.devnull)  # Null file for testing
     file_handler.setLevel(logging.INFO)
     file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(file_formatter)
