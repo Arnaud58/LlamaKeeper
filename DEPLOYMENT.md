@@ -73,7 +73,7 @@ LOG_LEVEL=INFO
 ```bash
 # Start backend
 cd backend
-uvicorn app.main:app --reload
+PYTHONPATH=. python3 -m uvicorn app.main:app --reload
 
 # In a separate terminal, start frontend
 python -m http.server 8000 --directory ../frontend

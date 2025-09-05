@@ -1,13 +1,41 @@
 import os
+import sys
+import logging
+
+# Configurer la journalisation
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Journaliser les informations de débogage
+logger.debug(f"Python Path: {sys.path}")
+logger.debug(f"Current Working Directory: {os.getcwd()}")
 
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import characters, stories
-from app.core.websocket import handle_websocket_events
-from app.models.database import get_async_session, init_models
+# Journaliser les tentatives d'importation
+try:
+    from app.api import characters, stories
+    logger.debug("Importation de characters et stories réussie")
+except ImportError as e:
+    logger.error(f"Erreur d'importation : {e}")
+    raise
+
+try:
+    from app.core.websocket import handle_websocket_events
+    logger.debug("Importation de handle_websocket_events réussie")
+except ImportError as e:
+    logger.error(f"Erreur d'importation : {e}")
+    raise
+
+try:
+    from app.models.database import get_async_session, init_models
+    logger.debug("Importation de get_async_session et init_models réussie")
+except ImportError as e:
+    logger.error(f"Erreur d'importation : {e}")
+    raise
 
 app = FastAPI(
     title="AI Dungeon Clone",

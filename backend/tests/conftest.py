@@ -124,10 +124,11 @@ async def async_test_client():
     """Créer un client de test asynchrone pour FastAPI"""
     from httpx import AsyncClient
     
+    transport = ASGITransport(app=app)
     # Créer un client asynchrone
     async_client = AsyncClient(
+        transport=transport,
         base_url="http://test",
-        app=app
     )
     
     try:

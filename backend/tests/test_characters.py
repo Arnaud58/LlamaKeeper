@@ -1,6 +1,5 @@
 import pytest
 import logging
-from httpx import AsyncClient, ASGITransport
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
