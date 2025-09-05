@@ -44,10 +44,10 @@ class StoryResponse(StoryBase, BaseModelWithTimestamps):
 
 
 class ActionBase(BaseModel):
-    content: str
-    action_type: str
-    reaction: Optional[str] = None
-    context: Optional[Dict] = None
+    content: str = Field(..., min_length=1, max_length=1000, description="Description de l'action")
+    action_type: str = Field(..., min_length=1, max_length=100, description="Type de l'action")
+    reaction: Optional[str] = Field(None, max_length=1000, description="Réaction à l'action")
+    context: Optional[Dict] = Field(None, description="Contexte supplémentaire de l'action")
 
 
 class ActionCreate(ActionBase):

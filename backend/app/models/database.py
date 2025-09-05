@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKe
 from sqlalchemy.orm import relationship, declarative_base, sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from datetime import datetime, timezone
+from typing import AsyncGenerator, Any
 import logging
 
 from app.core.config import settings
@@ -125,19 +126,33 @@ class Memory(Base):
     character = relationship("Character", back_populates="memories")
 
 
-async def get_async_session() -> AsyncSession:
+async def get_async_session() -> AsyncGenerator[AsyncSession, Any]:
     """
     Fonction utilitaire pour obtenir une session asynchrone
     
-    :return: Une session asynchrone
+    :return: Un générateur de session asynchrone
     """
     logger.debug("Tentative d'obtention d'une session asynchrone")
     async with AsyncSessionLocal() as session:
         try:
+            logger.debug(f"Session créée : {session}")
+            # Vérifier l'état de la session avant de la yielder
+            if not session.is_active:
+                logger.warning("La session n'est pas active avant le yield")
+                await session.begin()
+            
             yield session
-            logger.debug("Session asynchrone obtenue avec succès")
+            
+            # Commit explicite si la session est toujours active
+            if session.is_active:
+                await session.commit()
+                logger.debug("Commit de la session effectué avec succès")
+            else:
+                logger.warning("La session n'était plus active après le yield")
+        
         except Exception as e:
             logger.error(f"Erreur lors de l'obtention de la session : {e}")
+            await session.rollback()
             raise
         finally:
             await session.close()

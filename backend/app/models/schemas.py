@@ -148,8 +148,24 @@ class ActionBase(BaseModel):
     context: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    def to_sqlalchemy(self, story: Optional[SQLStory] = None, character: Optional[SQLCharacter] = None) -> SQLAction:
-        """Convert Pydantic model to SQLAlchemy model"""
+    async def to_sqlalchemy(self, session: AsyncSession, story: Optional[SQLStory] = None, character: Optional[SQLCharacter] = None) -> SQLAction:
+        """Convert Pydantic model to SQLAlchemy model with validation"""
+        # Vérifier l'existence de l'histoire
+        if not story:
+            story_query = select(SQLStory).where(SQLStory.id == self.story_id)
+            result = await session.execute(story_query)
+            story = result.scalar_one_or_none()
+            if not story:
+                raise ValueError(f"Story with ID {self.story_id} not found")
+
+        # Vérifier l'existence du personnage
+        if not character:
+            character_query = select(SQLCharacter).where(SQLCharacter.id == self.character_id)
+            result = await session.execute(character_query)
+            character = result.scalar_one_or_none()
+            if not character:
+                raise ValueError(f"Character with ID {self.character_id} not found")
+
         return SQLAction(
             story_id=self.story_id,
             character_id=self.character_id,
@@ -218,8 +234,16 @@ class MemoryBase(BaseModel):
     context: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
-    def to_sqlalchemy(self, character: Optional[SQLCharacter] = None) -> SQLMemory:
-        """Convert Pydantic model to SQLAlchemy model"""
+    async def to_sqlalchemy(self, session: AsyncSession, character: Optional[SQLCharacter] = None) -> SQLMemory:
+        """Convert Pydantic model to SQLAlchemy model with validation"""
+        # Vérifier l'existence du personnage
+        if not character:
+            character_query = select(SQLCharacter).where(SQLCharacter.id == self.character_id)
+            result = await session.execute(character_query)
+            character = result.scalar_one_or_none()
+            if not character:
+                raise ValueError(f"Character with ID {self.character_id} not found")
+
         return SQLMemory(
             character_id=self.character_id,
             content=self.content,
