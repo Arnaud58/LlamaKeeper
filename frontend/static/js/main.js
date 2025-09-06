@@ -1,3 +1,33 @@
+// Backend Configuration
+const BACKEND_URL = window.BACKEND_URL || 'http://localhost:8000';
+
+// API Utility Functions
+async function apiCall(endpoint, method = 'GET', body = null) {
+    try {
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        };
+
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(`${BACKEND_URL}${endpoint}`, options);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error(`API call to ${endpoint} failed:`, error);
+        throw error;
+    }
+}
+
 // WebSocket Connection Management
 class StoryWebSocket {
     constructor(onMessageCallback) {
@@ -10,8 +40,9 @@ class StoryWebSocket {
 
     connect() {
         // Construct WebSocket URL dynamically
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
+        const backendUrl = new URL(BACKEND_URL);
+        const protocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = backendUrl.host;
         const wsUrl = `${protocol}//${host}/ws/stories`;
 
         this.socket = new WebSocket(wsUrl);

@@ -73,16 +73,40 @@ LOG_LEVEL=INFO
 ```bash
 # Start backend
 cd backend
-PYTHONPATH=. python3 -m uvicorn app.main:app --reload
+PYTHONPATH=. python3 -m uvicorn app.main:app --reload --port 8000
 
 # In a separate terminal, start frontend
-python -m http.server 8000 --directory ../frontend
+python -m http.server 8080 --directory ../frontend
 ```
 
 ### 9. Access the Application
 Open a web browser:
 - Backend: `http://localhost:8000/`
-- Frontend: `http://localhost:8000`
+- Frontend: `http://localhost:8080`
+
+### 10. Configuring Backend URL
+By default, the frontend uses `http://localhost:8000` as the backend URL.
+To override this, you can set the `BACKEND_URL` in the browser:
+
+```javascript
+// In browser console or a script before loading main.js
+window.BACKEND_URL = 'http://your-backend-host:port';
+```
+
+### 11. Verify Frontend-Backend Communication
+1. Open browser DevTools (F12)
+2. Go to the Network tab
+3. Refresh the frontend page
+4. Check for API calls to `http://localhost:8000/`
+   - Look for successful requests (status 200)
+   - Ensure no CORS errors are present
+
+#### Troubleshooting Communication
+- If API calls fail, check:
+  1. Backend is running on port 8000
+  2. CORS settings in `backend/app/main.py`
+  3. Frontend API endpoint configuration
+  4. Verify `BACKEND_URL` is correctly set
 
 ## Deployment Modes
 
